@@ -1,0 +1,480 @@
+# ============================================================
+# DOCKER DEPLOYMENT FOR HOMOMORPHIC VOTING SYSTEM
+# ============================================================
+
+# File Structure:
+# project-root/
+# ├── docker-compose.yml (this file)
+# ├── backend/
+# │   ├── Dockerfile
+# │   ├── package.json
+# │   └── server.js
+# └── frontend/
+#     ├── Dockerfile
+#     ├── package.json
+#     └── src/
+
+# ============================================================
+# docker-compose.yml
+# ============================================================
+
+version: '3.8'
+
+services:
+  # Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: homomorphic-voting-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - voting-network
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: homomorphic-voting-frontend
+    ports:
+      - "3000:80"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3001/api/voting
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - voting-network
+
+networks:
+  voting-network:
+    driver: bridge
+
+# ============================================================
+# backend/Dockerfile
+# ============================================================
+
+# FROM node:18-alpine
+# 
+# WORKDIR /app
+# 
+# # Install dependencies
+# COPY package*.json ./
+# RUN npm ci --only=production
+# 
+# # Copy application code
+# COPY . .
+# 
+# # Expose port
+# EXPOSE 3001
+# 
+# # Health check endpoint
+# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+#   CMD node -e "require('http').get('http://localhost:3001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+# 
+# # Start server
+# CMD ["node", "server.js"]
+
+# ============================================================
+# backend/package.json
+# ============================================================
+
+# {
+#   "name": "homomorphic-voting-backend",
+#   "version": "1.0.0",
+#   "description": "Backend for homomorphic encryption voting system",
+#   "main": "server.js",
+#   "scripts": {
+#     "start": "node server.js",
+#     "dev": "nodemon server.js"
+#   },
+#   "dependencies": {
+#     "express": "^4.18.2",
+#     "cors": "^2.8.5",
+#     "paillier-bigint": "^3.4.1",
+#     "body-parser": "^1.20.2"
+#   },
+#   "devDependencies": {
+#     "nodemon": "^3.0.1"
+#   }
+# }
+
+# ============================================================
+# frontend/Dockerfile (for React)
+# ============================================================
+
+# # Build stage
+# FROM node:18-alpine AS builder
+# 
+# WORKDIR /app
+# 
+# # Install dependencies
+# COPY package*.json ./
+# RUN npm ci
+# 
+# # Copy source code
+# COPY . .
+# 
+# # Build application
+# RUN npm run build
+# 
+# # Production stage
+# FROM nginx:alpine
+# 
+# # Copy built files
+# COPY --from=builder /app/build /usr/share/nginx/html
+# 
+# # Copy nginx configuration
+# COPY nginx.conf /etc/nginx/conf.d/default.conf
+# 
+# EXPOSE 80
+# 
+# CMD ["nginx", "-g", "daemon off;"]
+
+# ============================================================
+# frontend/nginx.conf
+# ============================================================
+
+# server {
+#     listen 80;
+#     server_name localhost;
+#     root /usr/share/nginx/html;
+#     index index.html;
+# 
+#     location / {
+#         try_files $uri $uri/ /index.html;
+#     }
+# 
+#     # Proxy API requests to backend
+#     location /api/ {
+#         proxy_pass http://backend:3001;
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade $http_upgrade;
+#         proxy_set_header Connection 'upgrade';
+#         proxy_set_header Host $host;
+#         proxy_cache_bypass $http_upgrade;
+#     }
+# 
+#     # Security headers
+#     add_header X-Frame-Options "SAMEORIGIN" always;
+#     add_header X-Content-Type-Options "nosniff" always;
+#     add_header X-XSS-Protection "1; mode=block" always;
+# }
+
+# ============================================================
+# KUBERNETES DEPLOYMENT (Optional)
+# ============================================================
+
+# ---
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: voting-system
+# 
+# ---
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: backend-config
+#   namespace: voting-system
+# data:
+#   PORT: "3001"
+#   NODE_ENV: "production"
+# 
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: backend
+#   namespace: voting-system
+# spec:
+#   replicas: 3
+#   selector:
+#     matchLabels:
+#       app: backend
+#   template:
+#     metadata:
+#       labels:
+#         app: backend
+#     spec:
+#       containers:
+#       - name: backend
+#         image: homomorphic-voting-backend:latest
+#         ports:
+#         - containerPort: 3001
+#         envFrom:
+#         - configMapRef:
+#             name: backend-config
+#         resources:
+#           requests:
+#             memory: "256Mi"
+#             cpu: "250m"
+#           limits:
+#             memory: "512Mi"
+#             cpu: "500m"
+#         livenessProbe:
+#           httpGet:
+#             path: /health
+#             port: 3001
+#           initialDelaySeconds: 30
+#           periodSeconds: 10
+#         readinessProbe:
+#           httpGet:
+#             path: /health
+#             port: 3001
+#           initialDelaySeconds: 5
+#           periodSeconds: 5
+# 
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: backend-service
+#   namespace: voting-system
+# spec:
+#   selector:
+#     app: backend
+#   ports:
+#   - protocol: TCP
+#     port: 3001
+#     targetPort: 3001
+#   type: ClusterIP
+# 
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: frontend
+#   namespace: voting-system
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels:
+#       app: frontend
+#   template:
+#     metadata:
+#       labels:
+#         app: frontend
+#     spec:
+#       containers:
+#       - name: frontend
+#         image: homomorphic-voting-frontend:latest
+#         ports:
+#         - containerPort: 80
+#         resources:
+#           requests:
+#             memory: "128Mi"
+#             cpu: "100m"
+#           limits:
+#             memory: "256Mi"
+#             cpu: "200m"
+# 
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: frontend-service
+#   namespace: voting-system
+# spec:
+#   selector:
+#     app: frontend
+#   ports:
+#   - protocol: TCP
+#     port: 80
+#     targetPort: 80
+#   type: LoadBalancer
+
+# ============================================================
+# DEPLOYMENT COMMANDS
+# ============================================================
+
+# DOCKER COMPOSE:
+# ---------------
+# 
+# Build and start:
+#   docker-compose up --build -d
+# 
+# Stop:
+#   docker-compose down
+# 
+# View logs:
+#   docker-compose logs -f
+# 
+# View backend logs:
+#   docker-compose logs -f backend
+# 
+# View frontend logs:
+#   docker-compose logs -f frontend
+# 
+# Restart services:
+#   docker-compose restart
+# 
+# Remove everything:
+#   docker-compose down -v --rmi all
+
+# KUBERNETES:
+# -----------
+# 
+# Apply configuration:
+#   kubectl apply -f kubernetes.yaml
+# 
+# Check status:
+#   kubectl get all -n voting-system
+# 
+# View logs:
+#   kubectl logs -f deployment/backend -n voting-system
+# 
+# Scale backend:
+#   kubectl scale deployment/backend --replicas=5 -n voting-system
+# 
+# Delete deployment:
+#   kubectl delete namespace voting-system
+
+# ============================================================
+# ENVIRONMENT VARIABLES
+# ============================================================
+
+# Backend (.env):
+# PORT=3001
+# NODE_ENV=production
+# CORS_ORIGIN=http://localhost:3000
+# MAX_VOTES_PER_SESSION=1000
+# KEY_SIZE=2048
+# LOG_LEVEL=info
+
+# Frontend (.env):
+# REACT_APP_API_URL=http://localhost:3001/api/voting
+# REACT_APP_ENCRYPTION_KEY_SIZE=2048
+# REACT_APP_ENABLE_ANALYTICS=false
+
+# ============================================================
+# PRODUCTION DEPLOYMENT CHECKLIST
+# ============================================================
+
+# Infrastructure:
+# - [ ] Use HTTPS/TLS certificates
+# - [ ] Set up reverse proxy (Nginx/Traefik)
+# - [ ] Configure firewall rules
+# - [ ] Set up load balancer
+# - [ ] Enable auto-scaling
+
+# Security:
+# - [ ] Implement rate limiting
+# - [ ] Add DDoS protection
+# - [ ] Enable CORS properly
+# - [ ] Set security headers
+# - [ ] Use secrets management
+# - [ ] Enable audit logging
+# - [ ] Implement monitoring
+
+# Performance:
+# - [ ] Enable caching (Redis)
+# - [ ] Use CDN for static assets
+# - [ ] Optimize Docker images
+# - [ ] Configure resource limits
+# - [ ] Set up health checks
+
+# Monitoring:
+# - [ ] Set up Prometheus/Grafana
+# - [ ] Configure alerts
+# - [ ] Enable error tracking (Sentry)
+# - [ ] Set up log aggregation (ELK)
+# - [ ] Monitor encryption performance
+
+# Backup:
+# - [ ] Database backups
+# - [ ] Configuration backups
+# - [ ] Key backup strategy
+# - [ ] Disaster recovery plan
+
+# ============================================================
+# QUICK START WITH DOCKER
+# ============================================================
+
+# 1. Create project structure:
+#    mkdir -p homomorphic-voting/{backend,frontend}
+#    cd homomorphic-voting
+
+# 2. Copy files to appropriate directories
+
+# 3. Build and run:
+#    docker-compose up --build
+
+# 4. Access application:
+#    Frontend: http://localhost:3000
+#    Backend: http://localhost:3001
+
+# ============================================================
+# MONITORING WITH DOCKER STATS
+# ============================================================
+
+# Real-time resource usage:
+#   docker stats homomorphic-voting-backend homomorphic-voting-frontend
+
+# View container details:
+#   docker inspect homomorphic-voting-backend
+
+# Execute commands in container:
+#   docker exec -it homomorphic-voting-backend sh
+
+# ============================================================
+# CI/CD PIPELINE (GitHub Actions Example)
+# ============================================================
+
+# name: Deploy Homomorphic Voting System
+# 
+# on:
+#   push:
+#     branches: [main]
+# 
+# jobs:
+#   test:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v3
+#       - uses: actions/setup-node@v3
+#         with:
+#           node-version: '18'
+#       - run: cd backend && npm ci && npm test
+#       - run: cd frontend && npm ci && npm test
+# 
+#   build-and-push:
+#     needs: test
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v3
+#       - uses: docker/build-push-action@v4
+#         with:
+#           context: ./backend
+#           push: true
+#           tags: myregistry/voting-backend:latest
+#       - uses: docker/build-push-action@v4
+#         with:
+#           context: ./frontend
+#           push: true
+#           tags: myregistry/voting-frontend:latest
+# 
+#   deploy:
+#     needs: build-and-push
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: appleboy/ssh-action@master
+#         with:
+#           host: ${{ secrets.SERVER_HOST }}
+#           username: ${{ secrets.SERVER_USER }}
+#           key: ${{ secrets.SSH_KEY }}
+#           script: |
+#             cd /opt/voting-system
+#             docker-compose pull
+#             docker-compose up -d
