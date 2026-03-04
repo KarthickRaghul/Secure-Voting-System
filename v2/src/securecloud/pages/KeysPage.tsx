@@ -55,15 +55,21 @@ export default function KeysPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Public key (safe to send)</Label>
-                <Input readOnly value={keypair?.publicKey ?? ""} placeholder="Generate keys to see public key" />
+                <Input
+                  readOnly
+                  value={keypair?.publicKey || ""}
+                  placeholder="Generate keys to see public key"
+                  className="font-mono text-xs"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Private key (keep secret)</Label>
                 <Input
                   readOnly
                   type={reveal ? "text" : "password"}
-                  value={keypair?.privateKey ?? ""}
+                  value={keypair?.privateKey || ""}
                   placeholder="Generate keys to see private key"
+                  className="font-mono text-xs"
                 />
                 <div className="flex items-center gap-2">
                   <input
@@ -81,6 +87,6 @@ export default function KeysPage() {
           </CardContent>
         </Card>
       </main>
-    </AppShell>
+    </AppShell >
   );
 }

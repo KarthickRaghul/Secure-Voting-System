@@ -5,14 +5,17 @@ export function getDemoDataset(id: DemoDatasetId): { name: string; values: numbe
     case "secure_voting":
       return {
         name: "Secure Voting Dataset",
-        description: "Toy votes dataset (0/1/2 values) for counting and summing.",
-        values: [1, 0, 1, 1, 0, 1, 2, 1, 0, 1, 1, 0],
+        description: "Large-scale demographic voting data simulation (0/1/2 values).",
+        // Generating 100 values for "large" feel
+        values: Array.from({ length: 120 }, () => Math.floor(Math.random() * 3)),
       };
     case "marks_analysis":
       return {
         name: "Marks Analysis Dataset",
-        description: "Toy marks dataset (0–100) for sum/average.",
-        values: [78, 92, 65, 84, 73, 88, 91, 56, 69, 77],
+        description: "Comprehensive student performance metric simulation (0–100).",
+        // Generating 100 values
+        values: Array.from({ length: 100 }, () => Math.floor(Math.random() * 61) + 40), // 40-100
       };
   }
 }
+

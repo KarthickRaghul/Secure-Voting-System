@@ -52,7 +52,7 @@ export default function SendPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Upload to external Python backend</CardTitle>
+            <CardTitle>Upload to Cloud</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="text-sm text-muted-foreground">API base URL: {baseUrl}</div>

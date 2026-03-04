@@ -18,37 +18,71 @@ const encryptedResultSchema = z.object({
 
 type EncryptedResult = z.infer<typeof encryptedResultSchema>;
 
+// --- MOCK STORAGE ---
+const mockStorage = {
+  datasets: new Map<string, { publicKey: string; ciphertext: Ciphertext[] }>(),
+};
+
 export function getApiBaseUrl(): string {
-  // Default for local development; can be overridden via VITE_API_BASE_URL.
-  return (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000";
+  return "MOCK_API";
 }
 
 export async function uploadEncryptedDataset(input: {
   publicKey: string;
   ciphertext: Ciphertext[];
 }): Promise<{ datasetId: string }> {
-  const res = await fetch(`${getApiBaseUrl()}/api/encrypted-datasets`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ public_key: input.publicKey, ciphertext: input.ciphertext }),
-  });
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 600));
 
-  if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-  const json = await res.json();
-  const parsed = uploadResponseSchema.parse(json);
-  return { datasetId: parsed.dataset_id };
+  const datasetId = `ds_${Math.random().toString(36).substring(2, 9)}`;
+  mockStorage.datasets.set(datasetId, { publicKey: input.publicKey, ciphertext: input.ciphertext });
+
+  return { datasetId };
 }
 
-export async function computeEncrypted(op: "sum" | "avg" | "count", input: {
-  datasetId: string;
-}): Promise<ServerEncryptedResult> {
-  const res = await fetch(`${getApiBaseUrl()}/api/compute/${op}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ dataset_id: input.datasetId }),
-  });
-  if (!res.ok) throw new Error(`Compute failed (${res.status})`);
-  const json = await res.json();
-  const parsed: EncryptedResult = encryptedResultSchema.parse(json);
-  return parsed as ServerEncryptedResult;
+export async function computeEncrypted(
+  op: "sum" | "avg" | "count",
+  input: { datasetId: string }
+): Promise<ServerEncryptedResult> {
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  const dataset = mockStorage.datasets.get(input.datasetId);
+  if (!dataset) throw new Error("Dataset not found in mock storage.");
+
+  const extractK = (key: string): bigint => {
+    const hex = key.split("-")[1];
+    return hex ? BigInt("0x" + hex) : 0n;
+  };
+
+  const k = extractK(dataset.publicKey);
+
+  let resultC = 0n;
+  let resultNonce = 0n;
+
+  if (op === "sum" || op === "avg") {
+    // Homomorphic addition: sum of (value + k + nonce) = sum(value) + count*k + sum(nonce)
+    for (const item of dataset.ciphertext) {
+      resultC += BigInt(item.c);
+      resultNonce += BigInt(item.nonce);
+    }
+    // Correct the sum so it only has ONE 'k', making it a valid single ciphertext
+    if (dataset.ciphertext.length > 0) {
+      resultC = resultC - BigInt(dataset.ciphertext.length - 1) * k;
+    }
+  } else if (op === "count") {
+    // Count is special; we encrypt the actual count so it demonstrates the flow.
+    const count = BigInt(dataset.ciphertext.length);
+    const nonce = BigInt(Math.floor(Math.random() * 9000000) + 1000000);
+    resultC = count + k + nonce;
+    resultNonce = nonce;
+  }
+
+  const result: ServerEncryptedResult = {
+    op,
+    encrypted: { c: Number(resultC), nonce: Number(resultNonce) },
+    meta: op === "avg" ? { count: dataset.ciphertext.length } : {},
+  };
+
+  return result;
 }

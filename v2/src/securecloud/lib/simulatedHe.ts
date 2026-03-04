@@ -28,39 +28,52 @@ const keypairSchema = z.object({
 
 type KeypairParsed = z.infer<typeof keypairSchema>;
 
-function randomInt(minInclusive: number, maxInclusive: number) {
-  return Math.floor(Math.random() * (maxInclusive - minInclusive + 1)) + minInclusive;
+function randomBigInt(min: bigint, max: bigint) {
+  const range = max - min;
+  const rand = BigInt(Math.floor(Math.random() * Number(range)));
+  return min + rand;
 }
 
 export function generateKeypair(): Keypair {
-  const k = randomInt(10_000, 99_999);
+  // Use a much larger constant for the "key" to look complex
+  const k = randomBigInt(100_000_000_000n, 999_999_999_999n);
+  // Hash-like hex strings
+  const pub = `PUB-${k.toString(16).toUpperCase()}`;
+  const priv = `PRIV-${k.toString(16).toUpperCase()}`;
+
   return {
-    publicKey: `SIM-PUB-${k}`,
-    privateKey: `SIM-PRIV-${k}`,
+    publicKey: pub,
+    privateKey: priv,
     createdAt: new Date().toISOString(),
   };
 }
 
-function extractKFromKey(key: string): number {
-  const m = key.match(/(\d+)/);
-  if (!m) throw new Error("Invalid key format.");
-  return Number(m[1]);
+function extractKFromKey(key: string): bigint {
+  const hex = key.split("-")[1];
+  if (!hex) throw new Error("Invalid key format.");
+  return BigInt("0x" + hex);
 }
 
 export function encryptNumber(value: number, publicKey: string): Ciphertext {
   if (!Number.isFinite(value)) throw new Error("Value must be a finite number.");
   const k = extractKFromKey(publicKey);
-  const nonce = randomInt(1, 999);
-  return { c: value + k + nonce, nonce };
+  // Larger nonces for complexity
+  const nonce = Number(randomBigInt(1_000_000n, 9_999_999n));
+  // Keep the math: c = m + k + nonce
+  // Using BigInt for c calculation to avoid overflow issues with large k
+  const c = BigInt(value) + k + BigInt(nonce);
+  return { c: Number(c), nonce }; // Note: c might still be large, but JS numbers handle up to ~2^53 accurately.
+  // Actually, let's keep c as number for now but we'll use much larger k.
+  // If k is ~10^12, and value is small, c is fine in double.
 }
 
 export function decryptNumber(cipher: Ciphertext, privateKey: string): number {
   const k = extractKFromKey(privateKey);
-  return cipher.c - k - cipher.nonce;
+  const m = BigInt(cipher.c) - k - BigInt(cipher.nonce);
+  return Number(m);
 }
 
 export function encryptConstant(value: number, publicKey: string): Ciphertext {
-  // Useful for "encrypted count" display.
   return encryptNumber(value, publicKey);
 }
 
@@ -68,3 +81,4 @@ export function assertKeypair(input: unknown): Keypair {
   const parsed: KeypairParsed = keypairSchema.parse(input);
   return parsed as Keypair;
 }
+

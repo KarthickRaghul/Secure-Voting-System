@@ -57,26 +57,47 @@ export default function EncryptPage() {
               Loaded: {plaintextNumbers.length} plaintext values • Encrypted: {ciphertextNumbers.length}
             </div>
 
-            <div className="rounded-md border">
+            <div className="rounded-xl border bg-muted/20">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Plaintext</TableHead>
+                    <TableHead className="w-24">Plaintext</TableHead>
                     <TableHead>Ciphertext (c)</TableHead>
                     <TableHead>Nonce</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {preview.map((row, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className="font-mono">{row.p}</TableCell>
-                      <TableCell className="font-mono">{row.c?.c ?? "—"}</TableCell>
-                      <TableCell className="font-mono">{row.c?.nonce ?? "—"}</TableCell>
+                  {ciphertextNumbers.length > 0 ? (
+                    plaintextNumbers.slice(0, 10).map((p, i) => {
+                      const c = ciphertextNumbers[i];
+                      return (
+                        <TableRow key={i} className="group transition-colors hover:bg-muted/50">
+                          <TableCell className="font-mono text-sm">{p}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {c ? "0x" + c.c.toString(16).toUpperCase().padStart(16, "0") : "—"}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {c ? "0x" + c.nonce.toString(16).toUpperCase().padStart(8, "0") : "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="h-24 text-center text-sm text-muted-foreground">
+                        Encrypt the dataset to see ciphertexts
+                      </TableCell>
                     </TableRow>
-                  ))}
+                  )}
                 </TableBody>
               </Table>
             </div>
+            {plaintextNumbers.length > 10 && (
+              <p className="text-center text-xs text-muted-foreground italic">
+                Showing first 10 rows of {plaintextNumbers.length}. All values are encrypted.
+              </p>
+            )}
+
           </CardContent>
         </Card>
       </main>

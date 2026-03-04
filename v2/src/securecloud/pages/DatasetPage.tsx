@@ -25,7 +25,7 @@ export default function DatasetPage() {
     const demo = getDemoDataset(id);
     setPlaintextNumbers(demo.values);
     setManual(demo.values.join(", "));
-    toast({ title: "Loaded demo dataset", description: demo.name });
+    toast({ title: "Loaded sample dataset", description: demo.name });
   }
 
   function applyManual() {
@@ -80,7 +80,7 @@ export default function DatasetPage() {
         <section className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle>Demo datasets</CardTitle>
+              <CardTitle>Sample datasets</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <Button variant="secondary" onClick={() => applyDemo("secure_voting")}>
